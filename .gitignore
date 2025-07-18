@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+
+# Environment variable files
+.env
+*.env
+
+# VS Code and other IDE config
+.vscode/
+.idea/
+
+# Streamlit-specific cache
+.streamlit/config.toml
+.streamlit/cache/
+
+# Jupyter Notebook checkpoints (if any)
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and outputs
+*.log
+*.out
+*.bak
+
+# PDF parsing temp files (optional, if created)
+*.pdf_cache/
+tmp/
+
+# FAISS / Chroma index folders (if persisted)
+index/
+faiss_index/
+chroma_db/

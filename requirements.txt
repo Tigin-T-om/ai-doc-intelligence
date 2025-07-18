@@ -1,0 +1,17 @@
+# Core dependencies
+streamlit
+langchain
+faiss-cpu           # OR chromadb if using Chroma
+psycopg2-binary     # PostgreSQL connector
+sqlalchemy
+python-dotenv
+
+# LLM Integration
+ollama              # To interact with Mistral locally
+
+# Optional
+tqdm
+pandas
+PyMuPDF             # PDF reading
+docx                # DOCX reading
+unstructured        # For various formats
