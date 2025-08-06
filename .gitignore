@@ -1,40 +1,43 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-
-# Virtual environment
-venv/
-
-# Environment variable files
-.env
+*.so
+*.log
+*.sqlite3
+*.db
 *.env
+.env.*
 
-# VS Code and other IDE config
-.vscode/
-.idea/
-
-# Streamlit-specific cache
-.streamlit/config.toml
-.streamlit/cache/
-
-# Jupyter Notebook checkpoints (if any)
+# Jupyter Notebooks
 .ipynb_checkpoints/
 
-# OS files
+# VS Code
+.vscode/
+
+# macOS / Windows
 .DS_Store
 Thumbs.db
 
-# Logs and outputs
-*.log
-*.out
+# Streamlit Cache
+.streamlit/config.toml
+.streamlit/secrets.toml
+.streamlit/cache/
+
+# FAISS Vector Store
+backend/vector_store/
+index.faiss
+index.pkl
+
+# Uploaded files
+uploads/
+*.pdf
+
+# Virtual Environment
+venv/
+
+# Ollama model data (stored elsewhere, but just in case)
+.ollama/
+
+# Misc
 *.bak
-
-# PDF parsing temp files (optional, if created)
-*.pdf_cache/
-tmp/
-
-# FAISS / Chroma index folders (if persisted)
-index/
-faiss_index/
-chroma_db/
+*.swp
