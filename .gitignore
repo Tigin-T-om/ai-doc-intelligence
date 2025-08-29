@@ -1,43 +1,59 @@
+# --------------------
 # Python
+# --------------------
 __pycache__/
 *.py[cod]
 *.so
 *.log
 *.sqlite3
 *.db
-*.env
-.env.*
+*.pkl
+*.bak
+*.swp
 
-# Jupyter Notebooks
+# --------------------
+# Environment & Config
+# --------------------
+venv/
+.env
+.env.*
+.ollama/
+
+# --------------------
+# Jupyter
+# --------------------
 .ipynb_checkpoints/
 
-# VS Code
+# --------------------
+# Editors / IDEs
+# --------------------
 .vscode/
+.idea/
 
-# macOS / Windows
+# --------------------
+# OS files
+# --------------------
 .DS_Store
 Thumbs.db
 
-# Streamlit Cache
+# --------------------
+# Streamlit
+# --------------------
 .streamlit/config.toml
 .streamlit/secrets.toml
 .streamlit/cache/
 
-# FAISS Vector Store
+# --------------------
+# Vector Stores
+# --------------------
 backend/vector_store/
 index.faiss
 index.pkl
 
-# Uploaded files
+# --------------------
+# Uploaded / User Files
+# --------------------
+documents/
 uploads/
 *.pdf
 
-# Virtual Environment
-venv/
-
-# Ollama model data (stored elsewhere, but just in case)
-.ollama/
-
-# Misc
-*.bak
-*.swp

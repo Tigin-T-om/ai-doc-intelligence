@@ -8,6 +8,7 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from backend.ollama_client import generate_response
 from backend.rag_pipeline import split_text_into_chunks, create_vector_store, retrieve_relevant_chunks
+from backend.summarizer import summarize_map_reduce  # now imported from backend
 
 # ----------------------------
 # UI CONFIGURATION
@@ -32,17 +33,23 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if "uploaded_docs" not in st.session_state:
-    st.session_state.uploaded_docs = {}   # {filename: text}
+    st.session_state.uploaded_docs = {}
 
 if "active_doc" not in st.session_state:
     st.session_state.active_doc = None
+
+if "current_view" not in st.session_state:
+    st.session_state.current_view = "Document Upload"  # ✅ initialize
+
+if "summary_cache" not in st.session_state:
+    st.session_state.summary_cache = {}  # ✅ initialize summary cache here
 
 # ----------------------------
 # SIDEBAR
 # ----------------------------
 with st.sidebar:
     st.title("📄 PDF Intelligence")
-    
+
     # Theme Toggle
     ms = st.session_state
     if "themes" not in ms:
@@ -81,30 +88,32 @@ with st.sidebar:
     if not ms.themes["refreshed"]:
         ms.themes["refreshed"] = True
         st.rerun()
-    
+
     # Navigation
     st.session_state.current_view = st.radio(
         "Select Section",
         ("Document Upload", "Extracted Text", "Chat"),
-        index=0,
+        index=("Document Upload", "Extracted Text", "Chat").index(st.session_state.current_view),
         key="navigation_radio"
     )
 
     if st.session_state.current_view == "Document Upload":
-        uploaded_file = st.file_uploader(
-            "Upload a PDF, DOCX, or TXT file",
-            type=["pdf", "docx", "txt"]
+        uploaded_files = st.file_uploader(
+            "Upload one or more PDF, DOCX, or TXT files",
+            type=["pdf", "docx", "txt"],
+            accept_multiple_files=True
         )
     else:
-        uploaded_file = None
+        uploaded_files = None
 
-    # Document Selector
+    # Document Selector (add All Documents option)
     if st.session_state.uploaded_docs:
+        doc_options = list(st.session_state.uploaded_docs.keys()) + ["🔎 All Documents"]
         st.session_state.active_doc = st.selectbox(
             "📂 Select Active Document",
-            options=list(st.session_state.uploaded_docs.keys()),
-            index=list(st.session_state.uploaded_docs.keys()).index(st.session_state.active_doc)
-            if st.session_state.active_doc else 0
+            options=doc_options,
+            index=doc_options.index(st.session_state.active_doc)
+            if st.session_state.active_doc in doc_options else 0
         )
 
     # Footer
@@ -119,94 +128,110 @@ with st.sidebar:
 # ----------------------------
 os.makedirs("documents", exist_ok=True)
 
-if uploaded_file:
-    file_path = os.path.join("documents", uploaded_file.name)
-    with open(file_path, 'wb') as f:
-        f.write(uploaded_file.getbuffer())
-    st.success(f"✅ File uploaded and saved to `{file_path}`")
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        file_path = os.path.join("documents", uploaded_file.name)
+        with open(file_path, 'wb') as f:
+            f.write(uploaded_file.getbuffer())
+        st.success(f"✅ File uploaded and saved to `{file_path}`")
 
-    # Extract text
-    def extract_text_from_pdf(path):
-        doc = fitz.open(path)
-        return "".join([page.get_text() for page in doc])
+        # Extract text
+        def extract_text_from_pdf(path):
+            doc = fitz.open(path)
+            return "".join([page.get_text() for page in doc])
 
-    doc_text = extract_text_from_pdf(file_path)
-    st.session_state.uploaded_docs[uploaded_file.name] = doc_text
+        doc_text = extract_text_from_pdf(file_path)
+        st.session_state.uploaded_docs[uploaded_file.name] = {"text": doc_text, "path": file_path}
 
-    with st.spinner("Indexing document for retrieval..."):
-        chunks = split_text_into_chunks(doc_text)
-        create_vector_store(chunks, doc_name=uploaded_file.name)
+        with st.spinner(f"Indexing {uploaded_file.name} for retrieval..."):
+            chunks = split_text_into_chunks(doc_text)
+            create_vector_store(chunks, doc_name=uploaded_file.name)
 
-    # Set as active doc if none selected
-    if not st.session_state.active_doc:
-        st.session_state.active_doc = uploaded_file.name
+        if not st.session_state.active_doc:
+            st.session_state.active_doc = uploaded_file.name
 
 # ----------------------------
 # DISPLAY CONTENT BASED ON VIEW
 # ----------------------------
 if st.session_state.current_view == "Extracted Text":
-    if st.session_state.active_doc:
+    if st.session_state.active_doc and st.session_state.active_doc != "🔎 All Documents":
         doc_name = st.session_state.active_doc
-        doc_text = st.session_state.uploaded_docs[doc_name]
+        doc_record = st.session_state.uploaded_docs[doc_name]
+        doc_text = doc_record["text"]
 
         st.subheader(f"📄 Extracted Text from {doc_name}")
         st.write(doc_text[:2000] + "..." if len(doc_text) > 2000 else doc_text)
 
-        # Document Summarization
-        if st.button("🧠 Generate Summary"):
-            with st.spinner("Summarizing with LLaMA 2..."):
-                MAX_CHARS = 2000
-                trimmed_text = doc_text[:MAX_CHARS]
-                prompt = f"Summarize the following document in 5 bullet points:\n\n{trimmed_text}"
-
-                start = time.time()
-                summary = generate_response(prompt, model="llama2")
-                end = time.time()
-
-                thinking_time = 5
-                time.sleep(max(0, thinking_time - (end - start)))
-
+        # Document Summarization (Map-Reduce)
+        st.markdown("#### Summary Options")
+        summary_level = st.radio("Choose summary level:", ("Short", "Medium", "Long"), index=0, horizontal=True)
+        if st.button("🧠 Generate Summary (Map-Reduce)"):
+            if summary_level == "Short":
+                cs = 1200
+            elif summary_level == "Medium":
+                cs = 900
+            else:
+                cs = 600
+            with st.spinner("Summarizing document (map-reduce)..."):
+                final_summary = summarize_map_reduce(
+                    doc_text,
+                    doc_name=doc_name,
+                    level=summary_level,
+                    model="llama2",
+                    chunk_size=cs,
+                    chunk_overlap=50
+                )
             st.subheader("📌 Summary")
-            simulate_typing(summary, delay=0.015)
+            simulate_typing(final_summary, delay=0.015)
 
+        # Insight Extractor
+        if st.button("🔍 Extract Key Insights"):
+            with st.spinner("Extracting insights with LLaMA 2..."):
+                insight_prompt = (
+                    "Extract key insights, main themes, and action points from the following document. "
+                    "Return structured bullet points under headings: MAIN THEMES, KEY FINDINGS, ACTIONS.\n\n"
+                    f"{doc_text[:20000]}"
+                )
+                insights = generate_response(insight_prompt, model="llama2")
+            st.subheader("💡 Key Insights")
+            simulate_typing(insights, delay=0.015)
+
+    elif st.session_state.active_doc == "🔎 All Documents":
+        st.info("ℹ️ 'Extracted Text' and per-document insights are only available for a single document. Select a specific document to summarize.")
     else:
         st.info("No document uploaded yet. Please go to 'Document Upload' to upload a file.")
 
 elif st.session_state.current_view == "Chat":
-    st.subheader("💬 Chat with Document")
+    st.subheader("💬 Chat with Document(s)")
 
-    # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Chat input
     if st.session_state.active_doc:
-        doc_name = st.session_state.active_doc
-        if user_question := st.chat_input("Ask a question about the document:"):
+        if user_question := st.chat_input("Ask a question about the document(s):"):
             st.session_state.messages.append({"role": "user", "content": user_question})
             with st.chat_message("user"):
                 st.markdown(user_question)
 
             with st.chat_message("assistant"):
                 with st.spinner("Thinking..."):
-                    retrieved_docs = retrieve_relevant_chunks(user_question, doc_name=doc_name)
+                    if st.session_state.active_doc == "🔎 All Documents":
+                        retrieved_docs = retrieve_relevant_chunks(user_question, doc_name="all")
+                    else:
+                        retrieved_docs = retrieve_relevant_chunks(user_question, doc_name=st.session_state.active_doc)
+
                     context = "\n\n".join([doc.page_content for doc in retrieved_docs])
                     prompt = f"Answer the question based on the context below:\n\n{context}\n\nQuestion: {user_question}"
 
-                    start = time.time()
                     answer = generate_response(prompt, model="llama2")
-                    end = time.time()
-
-                    thinking_time = 5
-                    time.sleep(max(0, thinking_time - (end - start)))
                 simulate_typing(answer, delay=0.02)
                 st.session_state.messages.append({"role": "assistant", "content": answer})
     else:
         st.info("Please upload and select a document to start chatting.")
 
-else:  # Default view when no file uploaded
-    if not uploaded_file and not st.session_state.uploaded_docs:
+else:
+    if not uploaded_files and not st.session_state.uploaded_docs:
         st.info("👈 Upload a document from the sidebar to begin")
 
 # ----------------------------
