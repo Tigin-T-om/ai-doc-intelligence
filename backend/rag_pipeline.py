@@ -1,3 +1,5 @@
+# rag_pipeline.py
+
 import os
 
 # ----------------------------
@@ -16,43 +18,44 @@ def split_text_into_chunks(text, chunk_size=500, overlap=50):
 
 
 # ----------------------------
-# Create Vector Store with FAISS
+# Create Vector Store for One Document
 # ----------------------------
-def create_vector_store(text_chunks, index_path="backend/vector_store"):
+def create_vector_store(text_chunks, doc_name, base_path="backend/vector_store"):
     from langchain_community.vectorstores import FAISS
     from langchain.embeddings import HuggingFaceEmbeddings
 
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
-    # Ensure the vector store directory exists
-    os.makedirs(index_path, exist_ok=True)
+    # Directory for this document's index
+    doc_index_path = os.path.join(base_path, f"faiss_index_{doc_name}")
+    os.makedirs(doc_index_path, exist_ok=True)
 
-    # Create FAISS vector store and save under "faiss_index"
+    # Create FAISS vector store
     vectordb = FAISS.from_documents(text_chunks, embedding_model)
-    vectordb.save_local(os.path.join(index_path, "faiss_index"))
-    return vectordb
+    vectordb.save_local(doc_index_path)
+    return vectordb, doc_index_path
 
 
 # ----------------------------
-# Load Existing Vector Store
+# Load Vector Store for One Document
 # ----------------------------
-def load_vector_store(index_path="backend/vector_store"):
+def load_vector_store(doc_name, base_path="backend/vector_store"):
     from langchain_community.vectorstores import FAISS
     from langchain.embeddings import HuggingFaceEmbeddings
 
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    doc_index_path = os.path.join(base_path, f"faiss_index_{doc_name}")
 
-    # ✅ THIS is what fixes the error
     return FAISS.load_local(
-        os.path.join(index_path, "faiss_index"),
+        doc_index_path,
         embeddings=embedding_model,
-        allow_dangerous_deserialization=True  # <-- this line is 100% required
+        allow_dangerous_deserialization=True
     )
 
 
 # ----------------------------
-# Perform Similarity Search
+# Retrieve Chunks for One Document
 # ----------------------------
-def retrieve_relevant_chunks(query, k=3, index_path="backend/vector_store"):
-    vectordb = load_vector_store(index_path)
+def retrieve_relevant_chunks(query, doc_name, k=3, base_path="backend/vector_store"):
+    vectordb = load_vector_store(doc_name, base_path)
     return vectordb.similarity_search(query, k=k)
