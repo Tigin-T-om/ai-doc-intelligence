@@ -1,16 +1,17 @@
 import streamlit as st
-from backend.ollama_client import generate_response
+from backend.llm_client import generate_text
 from backend.rag_pipeline import split_text_into_chunks
 
 # ----------------------------
 # Map-Reduce Summarizer
 # ----------------------------
-def summarize_map_reduce(text, doc_name, level="Short", model="llama2", chunk_size=800, chunk_overlap=50):
+def summarize_map_reduce(text, doc_name, level="Short", chunk_size=800, chunk_overlap=50):
     """
     Map-reduce summarization:
       - splits text into chunks
       - summarizes each chunk (map)
       - combines summaries (reduce)
+    Returns: (final_summary, provider)
     """
 
     cache_key = (doc_name, level)
@@ -19,7 +20,7 @@ def summarize_map_reduce(text, doc_name, level="Short", model="llama2", chunk_si
 
     docs = split_text_into_chunks(text, chunk_size=chunk_size, overlap=chunk_overlap)
     if not docs:
-        return "No content to summarize."
+        return "No content to summarize.", "None"
 
     # Instructions
     if level == "Short":
@@ -43,15 +44,19 @@ def summarize_map_reduce(text, doc_name, level="Short", model="llama2", chunk_si
 
     # Map step
     chunk_summaries = []
+    provider_used = None
     progress_bar = st.progress(0)
     total = len(docs)
     for i, doc in enumerate(docs, start=1):
         chunk_text = doc.page_content
         prompt = f"{map_instr}\n\nChunk:\n{chunk_text}"
         try:
-            chunk_summary = generate_response(prompt, model=model)
+            chunk_summary, provider_used = generate_text(prompt)
         except Exception:
-            chunk_summary = chunk_text[:400] + ("..." if len(chunk_text) > 400 else "")
+            chunk_summary, provider_used = (
+                chunk_text[:400] + ("..." if len(chunk_text) > 400 else ""),
+                "Fallback: Truncated Text"
+            )
         chunk_summaries.append(chunk_summary)
         progress_bar.progress(int(i / total * 100))
     progress_bar.empty()
@@ -60,9 +65,10 @@ def summarize_map_reduce(text, doc_name, level="Short", model="llama2", chunk_si
     combined_input = "\n\n---\n\n".join(chunk_summaries)
     reduce_prompt = f"{reduce_instr}\n\nBelow are chunk-level summaries:\n\n{combined_input}"
     try:
-        final_summary = generate_response(reduce_prompt, model=model)
+        final_summary, provider_used = generate_text(reduce_prompt)
     except Exception:
-        final_summary = "\n\n".join(chunk_summaries)
+        final_summary, provider_used = "\n\n".join(chunk_summaries), "Fallback: Combined chunks"
 
-    st.session_state.summary_cache[cache_key] = final_summary
-    return final_summary
+    # Cache result
+    st.session_state.summary_cache[cache_key] = (final_summary, provider_used)
+    return final_summary, provider_used
