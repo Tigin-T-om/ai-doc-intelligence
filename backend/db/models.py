@@ -10,6 +10,10 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(256), unique=True, nullable=False, index=True)
     hashed_password = Column(String(512), nullable=False)
+    role = Column(String(50), default="user", nullable=False)
+    # --- ADD THIS LINE ---
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # ---------------------
 
     documents = relationship("Document", back_populates="owner", cascade="all, delete-orphan")
     sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")

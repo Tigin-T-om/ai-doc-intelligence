@@ -7,19 +7,27 @@ import streamlit as st
 # ----------------------------
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from backend.db.db_handler import get_session, get_documents_by_user, get_document_by_name_for_user, create_tables
+# --- DB & View Imports ---
+from backend.db.db_handler import get_session, get_document_by_name_for_user, create_tables
 from frontend.views.auth_view import render_auth_view
 from frontend.views.upload_view import render_upload_view
 from frontend.views.extract_view import render_extract_view
 from frontend.views.chat_view import chat_view
 from frontend.components.utils import init_session
-from frontend.components.sidebar import sidebar_ui   # ✅ import new sidebar
+
+# --- NEW: Import Sidebar Components ---
+from frontend.views.admin.admin_sidebar import render_admin_sidebar # <-- ★ YOUR CHANGE IS HERE ★
+from frontend.components.sidebar import render_user_sidebar # Updated user sidebar
+
+# --- NEW: Import Admin Views ---
+from frontend.views.admin.dashboard_view import render_dashboard_view
+from frontend.views.admin.user_management_view import render_user_management_view
+# -----------------------------
 
 # ----------------------------
 # INIT DB
 # ----------------------------
-# ⚠️ Removed drop_tables() so data is not lost every rerun
-create_tables()  # only creates tables if they don’t exist
+create_tables()
 
 # ----------------------------
 # STREAMLIT PAGE CONFIG
@@ -39,66 +47,50 @@ if not st.session_state.auth["logged_in"]:
 # ----------------------------
 current_username = st.session_state.auth["username"]
 current_user_id = st.session_state.auth["user_id"]
+current_user_role = st.session_state.auth.get("role")
 
-# --- SIDEBAR ---
+# Initialize uploaded_files (it will be set by the user sidebar if not admin)
+uploaded_files = None
+
+# --- NEW: Refactored Sidebar ---
 with st.sidebar:
     st.title(f"Welcome, {current_username}")
     if st.button("Logout"):
-        st.session_state.auth = {"logged_in": False, "username": None, "user_id": None}
+        for key in st.session_state.keys():
+            del st.session_state[key]
         st.rerun()
 
     st.markdown("---")
 
-    def set_view():
-        st.session_state.current_view = st.session_state.navigation_radio
-
-    st.radio(
-        "Select Section",
-        ("Document Upload", "Extracted Text", "Chat"),
-        index=("Document Upload", "Extracted Text", "Chat").index(st.session_state.current_view),
-        key="navigation_radio",
-        on_change=set_view
-    )
-
-    # File uploader
-    if st.session_state.current_view == "Document Upload":
-        uploaded_files = st.file_uploader("Upload PDF files", type=["pdf"], accept_multiple_files=True)
+    if current_user_role == "admin":
+        render_admin_sidebar()
     else:
-        uploaded_files = None
-
-    # Document selector
-    with get_session() as db:
-        user_docs = get_documents_by_user(db, current_user_id)
-    if user_docs:
-        doc_options_list = [doc.filename for doc in user_docs] + ["🔎 All My Documents"]
-        if st.session_state.active_doc not in doc_options_list:
-            st.session_state.active_doc = doc_options_list[0]
-        selected_doc_name = st.selectbox(
-            "📂 Select Document",
-            options=doc_options_list,
-            index=doc_options_list.index(st.session_state.active_doc)
-        )
-        st.session_state.active_doc = selected_doc_name
-    else:
-        st.session_state.active_doc = None
+        uploaded_files = render_user_sidebar(current_user_id)
 
     st.markdown("---")
     st.markdown("Developed by Tigin Tom")
-
-# ✅ Add Chat Sessions Sidebar (below your existing sidebar content)
-sidebar_ui(current_user_id)
+# --- End of Sidebar ---
 
 # ----------------------------
-# RENDER VIEWS
+# RENDER MAIN CONTENT
 # ----------------------------
-active_doc_obj = None
-if st.session_state.active_doc and st.session_state.active_doc != "🔎 All My Documents":
-    with get_session() as db:
-        active_doc_obj = get_document_by_name_for_user(db, current_user_id, st.session_state.active_doc)
+if st.session_state.get("is_admin_view", False):
+    # Render Admin Views
+    if st.session_state.admin_view == "Dashboard":
+        render_dashboard_view()
+    elif st.session_state.admin_view == "User Management":
+        render_user_management_view()
+else:
+    # Render Regular User Views
+    active_doc_obj = None
+    if st.session_state.get('active_doc') and st.session_state.active_doc != "🔎 All My Documents":
+        with get_session() as db:
+            active_doc_obj = get_document_by_name_for_user(db, current_user_id, st.session_state.active_doc)
 
-if st.session_state.current_view == "Document Upload":
-    render_upload_view(current_user_id, uploaded_files)
-elif st.session_state.current_view == "Extracted Text":
-    render_extract_view(active_doc_obj)
-elif st.session_state.current_view == "Chat":
-    chat_view(active_doc_obj, current_user_id)
+    view = st.session_state.get("current_view", "Document Upload")
+    if view == "Document Upload":
+        render_upload_view(current_user_id, uploaded_files)
+    elif view == "Extracted Text":
+        render_extract_view(active_doc_obj)
+    elif view == "Chat":
+        chat_view(active_doc_obj, current_user_id)

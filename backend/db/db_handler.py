@@ -1,10 +1,18 @@
+# backend/db/db_handler.py
+
 import os
+import shutil
 from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
 
+# --- STEP 1: IMPORT MODELS FIRST ---
+# This ensures that the Base object knows about all your tables before any other code runs.
+from backend.db.models import Base, User, Document, ChatMessage, ChatSession
+
+# --- STEP 2: CONFIGURE AND CONNECT TO THE DATABASE ---
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -13,13 +21,11 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-from backend.db.models import Base, User, Document, ChatMessage, ChatSession
+# --- STEP 3: DEFINE DATABASE FUNCTIONS ---
 
 def create_tables():
+    # The 'Base' object is now guaranteed to be fully populated with your models.
     Base.metadata.create_all(bind=engine)
-
-def drop_tables():
-    Base.metadata.drop_all(bind=engine)
 
 @contextmanager
 def get_session():
@@ -47,6 +53,10 @@ def add_user(db, username, hashed_password):
     db.refresh(user)
     return user
 
+def get_recent_users(db, limit=5):
+    """Fetches the most recently registered users."""
+    return db.query(User).order_by(User.created_at.desc()).limit(limit).all()
+
 # --- Document CRUD ---
 def add_document_for_user(db, user_id, filename, filepath, vector_store_path, full_text):
     doc = Document(
@@ -67,22 +77,15 @@ def get_document_by_name_for_user(db, user_id, filename):
 def get_documents_by_user(db, user_id):
     return db.query(Document).filter(Document.user_id == user_id).all()
 
+def get_all_documents(db):
+    """Fetches all documents from the database."""
+    return db.query(Document).all()
+
+def get_recent_documents(db, limit=5):
+    """Fetches the most recently uploaded documents."""
+    return db.query(Document).order_by(Document.created_at.desc()).limit(limit).all()
+
 # --- Chat CRUD ---
-def add_chat_message(db, doc_id=None, session_id=None, role=None, content=None):
-    msg = ChatMessage(
-        document_id=doc_id,
-        session_id=session_id,
-        role=role,
-        content=content
-    )
-    db.add(msg)
-    db.commit()
-    db.refresh(msg)
-    return msg
-
-def get_chat_history_by_doc(db, doc_id):
-    return db.query(ChatMessage).filter(ChatMessage.document_id == doc_id).order_by(ChatMessage.created_at).all()
-
 def create_chat_session(db, user_id, name="New Chat"):
     session = ChatSession(user_id=user_id, name=name)
     db.add(session)
@@ -102,3 +105,66 @@ def add_message_to_session(db, session_id, role, content):
     db.commit()
     db.refresh(msg)
     return msg
+
+# --- NEW: Admin Analytics ---
+def count_total_users(db):
+    return db.query(User).count()
+
+def count_total_documents(db):
+    return db.query(Document).count()
+
+def count_total_chat_sessions(db):
+    return db.query(ChatSession).count()
+
+def get_all_users(db):
+    """Fetches all users from the database."""
+    return db.query(User).all()
+
+def update_user_role(db, user_id, new_role):
+    """Updates a user's role in the database."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.role = new_role
+        db.commit()
+        return True
+    return False
+
+def delete_user_by_id(db, user_id):
+    """Deletes a user and all their associated data."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        db.delete(user)
+        db.commit()
+        return True
+    return False
+
+def delete_document_by_id(db, doc_id):
+    """
+    Deletes a document from the database, its .pdf file, 
+    and its vector store directory.
+    """
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        return False, "Document not found in database."
+
+    filepath = doc.filepath
+    vector_store_path = doc.vector_store_path
+
+    try:
+        # 1. Delete from Database
+        db.delete(doc)
+        db.commit()
+
+        # 2. Delete PDF file from 'documents/'
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        
+        # 3. Delete FAISS vector store directory from 'vector_store/'
+        if os.path.exists(vector_store_path):
+            shutil.rmtree(vector_store_path)
+            
+        return True, f"Successfully deleted {doc.filename}."
+    
+    except Exception as e:
+        db.rollback() # Rollback DB changes if file deletion fails
+        return False, f"An error occurred: {e}"

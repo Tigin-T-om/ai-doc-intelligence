@@ -15,21 +15,25 @@ def render_auth_view():
         uname = st.text_input("Username", key="login_username", label_visibility="visible")
         pwd = st.text_input("Password", type="password", key="login_password")
         if st.button("Login"):
-            user = authenticate_user(uname, pwd)   # ✅ no strip(), take exact input
+            user = authenticate_user(uname, pwd)
             if user:
                 st.session_state.auth["logged_in"] = True
                 st.session_state.auth["username"] = user.username
                 st.session_state.auth["user_id"] = user.id
+                st.session_state.auth["role"] = user.role  # <- ADD THIS LINE
 
-                # ✅ show username safely without markdown parsing issues
                 st.success("Welcome back!")
                 st.code(user.username)
-
+                
+                # Use a short delay before rerunning to allow user to see success message
+                import time
+                time.sleep(1)
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
 
     # --- REGISTER TAB ---
+    # (No changes needed here)
     with register_tab:
         st.subheader("Create an account")
         r_uname = st.text_input("Choose username", key="reg_username", label_visibility="visible")
@@ -43,13 +47,11 @@ def render_auth_view():
                 st.error("Passwords do not match.")
             else:
                 try:
-                    # ✅ no strip(), preserve underscores exactly
                     user = register_user(r_uname, r_pwd)
-
                     st.success("Registered successfully! You can now log in as:")
                     st.code(user.username)
-
                 except ValueError as ve:
                     st.error(str(ve))
                 except Exception as e:
                     st.error(f"Registration failed: {e}")
+                    
