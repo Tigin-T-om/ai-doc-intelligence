@@ -8,19 +8,16 @@ def render_admin_sidebar():
     """
     st.sidebar.title("👑 Admin Panel")
 
-    # Get user count for the button
     try:
         with get_session() as db:
             user_count = count_total_users(db)
     except Exception:
         user_count = "N/A"
 
-    # Get the current active view
     active_view = st.session_state.get("admin_view", "Dashboard")
 
     # --- Button Navigation ---
     
-    # Dashboard Button
     if st.sidebar.button(
         "📊 Dashboard",
         type="primary" if active_view == "Dashboard" else "secondary",
@@ -28,9 +25,8 @@ def render_admin_sidebar():
     ):
         st.session_state.admin_view = "Dashboard"
         st.session_state.is_admin_view = True
-        st.rerun() # Rerun to ensure the button type updates
+        st.rerun()
 
-    # User Management Button
     if st.sidebar.button(
         f"👥 User Management ({user_count})",
         type="primary" if active_view == "User Management" else "secondary",
@@ -39,3 +35,14 @@ def render_admin_sidebar():
         st.session_state.admin_view = "User Management"
         st.session_state.is_admin_view = True
         st.rerun()
+
+    # --- NEW BUTTON ADDED ---
+    if st.sidebar.button(
+        "📈 API & Model Management",
+        type="primary" if active_view == "API Management" else "secondary",
+        use_container_width=True
+    ):
+        st.session_state.admin_view = "API Management"
+        st.session_state.is_admin_view = True
+        st.rerun()
+    # --- END NEW BUTTON ---

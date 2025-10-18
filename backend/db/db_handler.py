@@ -7,10 +7,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
-
+from datetime import datetime, timedelta, timezone
 # --- STEP 1: IMPORT MODELS FIRST ---
 # This ensures that the Base object knows about all your tables before any other code runs.
-from backend.db.models import Base, User, Document, ChatMessage, ChatSession
+from backend.db.models import Base, User, Document, ChatMessage, ChatSession, ApiLog
 
 # --- STEP 2: CONFIGURE AND CONNECT TO THE DATABASE ---
 load_dotenv()
@@ -85,6 +85,24 @@ def get_recent_documents(db, limit=5):
     """Fetches the most recently uploaded documents."""
     return db.query(Document).order_by(Document.created_at.desc()).limit(limit).all()
 
+def count_documents_by_user(db, user_id):
+    """Counts total documents for a single user."""
+    return db.query(Document).filter(Document.user_id == user_id).count()
+
+def get_recent_documents_by_user(db, user_id, limit=5):
+    """Fetches the most recent documents for a single user."""
+    return db.query(Document).filter(Document.user_id == user_id).order_by(Document.created_at.desc()).limit(limit).all()
+
+# ... (at the end of the --- Chat CRUD --- section)
+
+def count_chat_sessions_by_user(db, user_id):
+    """Counts total chat sessions for a single user."""
+    return db.query(ChatSession).filter(ChatSession.user_id == user_id).count()
+
+def get_recent_chat_sessions_by_user(db, user_id, limit=5):
+    """Fetches the most recent chat sessions for a single user."""
+    return db.query(ChatSession).filter(ChatSession.user_id == user_id).order_by(ChatSession.created_at.desc()).limit(limit).all()
+
 # --- Chat CRUD ---
 def create_chat_session(db, user_id, name="New Chat"):
     session = ChatSession(user_id=user_id, name=name)
@@ -105,6 +123,24 @@ def add_message_to_session(db, session_id, role, content):
     db.commit()
     db.refresh(msg)
     return msg
+
+def update_chat_session_name(db, session_id, new_name):
+    """Updates the name of a specific chat session."""
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if session:
+        session.name = new_name
+        db.commit()
+        return True
+    return False
+
+def delete_chat_session_by_id(db, session_id):
+    """Deletes a chat session and its associated messages."""
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if session:
+        db.delete(session) # Cascade delete should handle messages
+        db.commit()
+        return True
+    return False
 
 # --- NEW: Admin Analytics ---
 def count_total_users(db):
@@ -168,3 +204,18 @@ def delete_document_by_id(db, doc_id):
     except Exception as e:
         db.rollback() # Rollback DB changes if file deletion fails
         return False, f"An error occurred: {e}"
+    
+    # --- API Log CRUD ---
+
+def add_api_log(db, provider, model):
+    """Adds a new API call log entry to the database."""
+    log_entry = ApiLog(provider=provider, model=model)
+    db.add(log_entry)
+    db.commit()
+
+def get_api_logs_last_n_days(db, days=30):
+    """Fetches all API logs from the last N days."""
+    # --- THIS LINE IS CHANGED ---
+    time_threshold = datetime.now(timezone.utc) - timedelta(days=days)
+    # ----------------------------
+    return db.query(ApiLog).filter(ApiLog.created_at >= time_threshold).all()

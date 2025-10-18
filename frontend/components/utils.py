@@ -13,9 +13,10 @@ def init_session():
     if "active_doc" not in st.session_state:
         st.session_state.active_doc = None
     if "current_view" not in st.session_state:
-        st.session_state.current_view = "Document Upload"
+        st.session_state.current_view = "Dashboard"
     if "admin_view" not in st.session_state: # <- ADD THIS LINE
         st.session_state.admin_view = "Dashboard" # <- ADD THIS LINE
+
 
 # ----------------------------
 # TYPING EFFECT

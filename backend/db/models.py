@@ -56,3 +56,11 @@ class ChatMessage(Base):
 
     document = relationship("Document", back_populates="chat_messages")
     session = relationship("ChatSession", back_populates="messages")
+
+class ApiLog(Base):
+    __tablename__ = "api_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String(100), nullable=False, index=True) # e.g., "Gemini", "Ollama"
+    model = Column(String(256), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    

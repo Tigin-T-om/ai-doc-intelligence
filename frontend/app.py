@@ -13,15 +13,17 @@ from frontend.views.auth_view import render_auth_view
 from frontend.views.upload_view import render_upload_view
 from frontend.views.extract_view import render_extract_view
 from frontend.views.chat_view import chat_view
+from frontend.views.user_dashboard_view import render_user_dashboard_view # <-- ADD THIS
 from frontend.components.utils import init_session
 
 # --- NEW: Import Sidebar Components ---
-from frontend.views.admin.admin_sidebar import render_admin_sidebar # <-- ★ YOUR CHANGE IS HERE ★
-from frontend.components.sidebar import render_user_sidebar # Updated user sidebar
+from frontend.views.admin.admin_sidebar import render_admin_sidebar
+from frontend.components.sidebar import render_user_sidebar
 
 # --- NEW: Import Admin Views ---
 from frontend.views.admin.dashboard_view import render_dashboard_view
 from frontend.views.admin.user_management_view import render_user_management_view
+from frontend.views.admin.api_management_view import render_api_management_view
 # -----------------------------
 
 # ----------------------------
@@ -49,7 +51,6 @@ current_username = st.session_state.auth["username"]
 current_user_id = st.session_state.auth["user_id"]
 current_user_role = st.session_state.auth.get("role")
 
-# Initialize uploaded_files (it will be set by the user sidebar if not admin)
 uploaded_files = None
 
 # --- NEW: Refactored Sidebar ---
@@ -63,6 +64,12 @@ with st.sidebar:
     st.markdown("---")
 
     if current_user_role == "admin":
+        # --- ★★★ THIS IS THE FIX ★★★ ---
+        # On first login, 'is_admin_view' won't exist.
+        # This block sets the admin view to 'True' by default for admins.
+        if "is_admin_view" not in st.session_state:
+            st.session_state.is_admin_view = True
+        # --- ★★★ END OF FIX ★★★ ---
         render_admin_sidebar()
     else:
         uploaded_files = render_user_sidebar(current_user_id)
@@ -80,6 +87,8 @@ if st.session_state.get("is_admin_view", False):
         render_dashboard_view()
     elif st.session_state.admin_view == "User Management":
         render_user_management_view()
+    elif st.session_state.admin_view == "API Management":
+        render_api_management_view()
 else:
     # Render Regular User Views
     active_doc_obj = None
@@ -87,8 +96,13 @@ else:
         with get_session() as db:
             active_doc_obj = get_document_by_name_for_user(db, current_user_id, st.session_state.active_doc)
 
-    view = st.session_state.get("current_view", "Document Upload")
-    if view == "Document Upload":
+    view = st.session_state.get("current_view", "Dashboard") # Default is now Dashboard
+    
+    # --- NEW ROUTE ADDED ---
+    if view == "Dashboard":
+        render_user_dashboard_view(current_user_id, current_username)
+    # --- END NEW ROUTE ---
+    elif view == "Document Upload":
         render_upload_view(current_user_id, uploaded_files)
     elif view == "Extracted Text":
         render_extract_view(active_doc_obj)
