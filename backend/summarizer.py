@@ -1,20 +1,19 @@
+# backend/summarizer.py
 import streamlit as st
 from backend.llm_client import generate_text
 from backend.rag_pipeline import split_text_into_chunks
+# --- ADD THESE IMPORTS ---
+from backend.db.db_handler import get_session, add_summary
+# -------------------------
 
-# ----------------------------
-# Map-Reduce Summarizer
-# ----------------------------
-def summarize_map_reduce(text, doc_name, level="Short", chunk_size=800, chunk_overlap=50):
+# --- FUNCTION SIGNATURE UPDATED ---
+def summarize_map_reduce(text, doc_id, user_id, doc_name, level="Short", chunk_size=800, chunk_overlap=50):
+# --------------------------------
     """
-    Map-reduce summarization:
-      - splits text into chunks
-      - summarizes each chunk (map)
-      - combines summaries (reduce)
+    Map-reduce summarization: splits, summarizes chunks, combines, and saves.
     Returns: (final_summary, provider)
     """
-
-    cache_key = (doc_name, level)
+    cache_key = (doc_name, level) # Use doc_name for caching key still
     if cache_key in st.session_state.summary_cache:
         return st.session_state.summary_cache[cache_key]
 
@@ -44,30 +43,57 @@ def summarize_map_reduce(text, doc_name, level="Short", chunk_size=800, chunk_ov
 
     # Map step
     chunk_summaries = []
-    provider_used = None
-    progress_bar = st.progress(0)
+    provider_used = "Unknown" # Default provider
+    progress_bar = st.progress(0, text="Summarizing chunks...")
     total = len(docs)
     for i, doc in enumerate(docs, start=1):
         chunk_text = doc.page_content
         prompt = f"{map_instr}\n\nChunk:\n{chunk_text}"
         try:
-            chunk_summary, provider_used = generate_text(prompt)
-        except Exception:
-            chunk_summary, provider_used = (
-                chunk_text[:400] + ("..." if len(chunk_text) > 400 else ""),
-                "Fallback: Truncated Text"
-            )
+            chunk_summary, provider_used_chunk = generate_text(prompt)
+            # Store the first successful provider found
+            if provider_used == "Unknown": provider_used = provider_used_chunk
+        except Exception as map_e:
+            st.warning(f"Chunk summarization failed: {map_e}. Using truncated text.")
+            chunk_summary = chunk_text[:400] + ("..." if len(chunk_text) > 400 else "")
+            # Keep provider_used as Unknown or the last successful one
+
         chunk_summaries.append(chunk_summary)
-        progress_bar.progress(int(i / total * 100))
-    progress_bar.empty()
+        progress_bar.progress(int((i / total) * 0.8), text=f"Summarizing chunk {i}/{total}...") # Map step is 80%
 
     # Reduce step
+    progress_bar.progress(85, text="Combining summaries...")
     combined_input = "\n\n---\n\n".join(chunk_summaries)
     reduce_prompt = f"{reduce_instr}\n\nBelow are chunk-level summaries:\n\n{combined_input}"
     try:
-        final_summary, provider_used = generate_text(reduce_prompt)
-    except Exception:
-        final_summary, provider_used = "\n\n".join(chunk_summaries), "Fallback: Combined chunks"
+        final_summary, provider_used_reduce = generate_text(reduce_prompt)
+        # Use the provider from the reduce step if possible
+        provider_used = provider_used_reduce
+    except Exception as reduce_e:
+        st.error(f"Final summary generation failed: {reduce_e}. Combining raw chunk summaries.")
+        final_summary = "\n\n".join(chunk_summaries)
+        provider_used = "Fallback: Combined chunks"
+
+    progress_bar.progress(100, text="Finalizing...")
+
+    # --- SAVE TO DATABASE ---
+    try:
+        with get_session() as db:
+            add_summary(
+                db=db,
+                user_id=user_id,
+                document_id=doc_id,
+                filename=doc_name, # Use doc_name here
+                level=level,
+                content=final_summary,
+                provider=provider_used
+            )
+        # st.toast("Summary saved!", icon="✅") # Optional feedback - maybe too noisy
+    except Exception as e:
+        st.error(f"Failed to save summary to database: {e}")
+    # --- END SAVE ---
+
+    progress_bar.empty() # Clear progress bar on completion
 
     # Cache result
     st.session_state.summary_cache[cache_key] = (final_summary, provider_used)

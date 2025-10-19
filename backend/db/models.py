@@ -64,3 +64,17 @@ class ApiLog(Base):
     model = Column(String(256), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
+class Summary(Base):
+    __tablename__ = "summaries"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
+    filename = Column(String(512), nullable=False) # Store filename for easy display
+    level = Column(String(50), nullable=False) # e.g., "Short", "Medium", "Long"
+    content = Column(Text, nullable=False)
+    provider = Column(String(100)) # Which LLM generated it
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships (optional but good practice)
+    owner = relationship("User")
+    document = relationship("Document")

@@ -13,7 +13,10 @@ from frontend.views.auth_view import render_auth_view
 from frontend.views.upload_view import render_upload_view
 from frontend.views.extract_view import render_extract_view
 from frontend.views.chat_view import chat_view
+from frontend.views.saved_summaries_view import render_saved_summaries_view
 from frontend.views.user_dashboard_view import render_user_dashboard_view # <-- ADD THIS
+from frontend.views.document_management_view import render_document_management_view
+from frontend.views.chat_history_view import render_chat_history_view
 from frontend.components.utils import init_session
 
 # --- NEW: Import Sidebar Components ---
@@ -96,15 +99,20 @@ else:
         with get_session() as db:
             active_doc_obj = get_document_by_name_for_user(db, current_user_id, st.session_state.active_doc)
 
-    view = st.session_state.get("current_view", "Dashboard") # Default is now Dashboard
+    view = st.session_state.get("current_view", "Dashboard")
     
-    # --- NEW ROUTE ADDED ---
     if view == "Dashboard":
         render_user_dashboard_view(current_user_id, current_username)
-    # --- END NEW ROUTE ---
     elif view == "Document Upload":
         render_upload_view(current_user_id, uploaded_files)
+    elif view == "Document Management":
+         render_document_management_view(current_user_id)
+    elif view == "Saved Summaries":
+         render_saved_summaries_view(current_user_id)
     elif view == "Extracted Text":
-        render_extract_view(active_doc_obj)
+        # Pass user_id here now
+        render_extract_view(active_doc_obj, current_user_id)
     elif view == "Chat":
         chat_view(active_doc_obj, current_user_id)
+    elif view == "Chat History":
+         render_chat_history_view(current_user_id)
