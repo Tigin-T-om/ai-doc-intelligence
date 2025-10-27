@@ -19,7 +19,7 @@ def render_extract_view(active_doc_obj, user_id):
         )
 
         st.markdown("---") # Add a divider
-        st.subheader("🧠 Generate Insights") # Changed subheader
+        st.subheader("📝 Generate Summary") # Changed subheader
 
         # --- Summary Options ---
         st.markdown("#### Summary Options")
@@ -44,7 +44,6 @@ def render_extract_view(active_doc_obj, user_id):
                 # Use a container with border for the summary
                 with st.container(border=True):
                     simulate_typing(final_summary) # Typing effect inside container
-                st.caption(f"✅ Generated with {provider}")
 
     else:
         st.info("ℹ️ Select a specific document from the sidebar to view its text and generate insights.")

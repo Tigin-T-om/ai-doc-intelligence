@@ -46,7 +46,7 @@ def generate_with_gemini(prompt: str, timeout: int = 30) -> str:
             except Exception as log_e:
                 print(f"CRITICAL: Failed to log API call - {log_e}")
             # --- END LOGGING ---
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            return data["candidates"][0]["content"]["parts"][0]["text"], "Gemini"
         except (KeyError, IndexError):
             raise RuntimeError(f"Unexpected Gemini response format: {data}")
     elif resp.status_code == 429:
@@ -66,14 +66,14 @@ def generate_text(prompt: str, prefer=["gemini", "ollama"], ollama_model="llama2
     for provider in prefer:
         try:
             if provider.lower() == "gemini":
-                return generate_with_gemini(prompt), "Gemini"
+                return generate_with_gemini(prompt)
             elif provider.lower() == "ollama":
                 try:
                     with get_session() as db:
                         add_api_log(db, provider="Ollama", model=ollama_model)
                 except Exception as log_e:
                     print(f"CRITICAL: Failed to log API call - {log_e}")
-                return ollama_generate(prompt, model=ollama_model), f"Ollama ({ollama_model})"
+                return ollama_generate(prompt, model=ollama_model)
         except Exception as e:
             print(f"⚠️ {provider} failed: {e}")
             continue
@@ -88,19 +88,26 @@ def test_api_provider(provider: str, model: str = "llama2"):
     try:
         if provider.lower() == "gemini":
             test_prompt = "Hello, respond with just 'OK'."
-            response = generate_with_gemini(test_prompt)
-            if "ok" in response.lower():
+            response_text, _ = generate_with_gemini(test_prompt) # Unpack the tuple
+            if "ok" in response_text.lower(): # Call lower on the text
                 return True, "Gemini connection successful."
             else:
-                return False, f"Gemini response unexpected: {response}"
+                return False, f"Gemini response unexpected: {response_text}"
         
         elif provider.lower() == "ollama":
             test_prompt = "Hello, respond with just 'OK'."
-            response = ollama_generate(test_prompt, model=model)
-            if "ok" in response.lower():
+            response_text, _ = ollama_generate(test_prompt, model=model) # Unpack the tuple
+            # --- LOGGING ADDED ---
+            try:
+                with get_session() as db:
+                    add_api_log(db, provider="Ollama", model=model)
+            except Exception as log_e:
+                print(f"CRITICAL: Failed to log API call - {log_e}")
+            # --- END LOGGING ---
+            if "ok" in response_text.lower(): # Call lower on the text
                 return True, f"Ollama ({model}) connection successful."
             else:
-                return False, f"Ollama response unexpected: {response}"
+                return False, f"Ollama response unexpected: {response_text}"
         
         else:
             return False, "Unknown provider."

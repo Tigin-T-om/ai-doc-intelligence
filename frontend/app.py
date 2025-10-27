@@ -17,6 +17,7 @@ from frontend.views.saved_summaries_view import render_saved_summaries_view
 from frontend.views.user_dashboard_view import render_user_dashboard_view # <-- ADD THIS
 from frontend.views.document_management_view import render_document_management_view
 from frontend.views.chat_history_view import render_chat_history_view
+from frontend.views.insights_view import render_insights_view
 from frontend.components.utils import init_session
 
 # --- NEW: Import Sidebar Components ---
@@ -109,8 +110,11 @@ else:
          render_document_management_view(current_user_id)
     elif view == "Saved Summaries":
          render_saved_summaries_view(current_user_id)
+    # --- NEW ROUTE ADDED ---
+    elif view == "Insights":
+         render_insights_view(current_user_id)
+    # --- END NEW ROUTE ---
     elif view == "Extracted Text":
-        # Pass user_id here now
         render_extract_view(active_doc_obj, current_user_id)
     elif view == "Chat":
         chat_view(active_doc_obj, current_user_id)

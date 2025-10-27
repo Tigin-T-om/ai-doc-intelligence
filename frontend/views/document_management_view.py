@@ -39,10 +39,10 @@ def render_document_management_view(user_id):
                         new_name = st.text_input(
                             "New filename (.pdf)",
                             value=doc.filename,
-                            key=f"rename_input_{doc.id}",
+                            key=f"rename_text_input_{doc.id}", # Changed key
                             label_visibility="collapsed"
                         )
-                        if st.button("Save Name", key=f"save_rename_{doc.id}"):
+                        if st.button("Save Name", key=f"save_rename_button_{doc.id}"): # Changed key
                             if new_name and new_name.strip() and new_name != doc.filename:
                                 with st.spinner("Renaming..."):
                                      with get_session() as db_action:
@@ -62,7 +62,7 @@ def render_document_management_view(user_id):
                     delete_popover = st.popover("🗑️ Delete", use_container_width=True)
                     with delete_popover:
                         st.error(f"Permanently delete '{doc.filename}'?")
-                        if st.button(f"Confirm Delete Doc {doc.id}", type="primary"):
+                        if st.button("Confirm Delete", key=f"confirm_delete_button_{doc.id}", type="primary"): # Changed key and button text
                             with st.spinner("Deleting document and index..."):
                                 with get_session() as db_action:
                                     success, message = delete_document_by_id(db_action, doc.id)

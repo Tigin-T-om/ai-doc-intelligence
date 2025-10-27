@@ -116,7 +116,7 @@ def render_upload_view(current_user_id, uploaded_files):
         if processed_any:
             # --- ADD THIS LINE ---
             # Clear the file uploader state before rerunning
-            st.session_state.file_uploader = None 
+            # st.session_state.file_uploader = None # This line causes the error
             # ---------------------
             st.rerun() # Refresh the page to show the updated document list
 

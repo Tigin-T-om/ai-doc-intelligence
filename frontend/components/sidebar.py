@@ -20,8 +20,8 @@ def render_user_sidebar(current_user_id):
 
     # --- 1. Button-Based Navigation ---
     st.sidebar.subheader("Navigation")
-    nav_options = ["Dashboard", "Document Upload", "Document Management", "Saved Summaries", "Extracted Text", "Chat", "Chat History"]
-    icons = ["🏠", "⬆️", "📚", "📌", "📄", "💬", "📜"]
+    nav_options = ["Dashboard", "Document Upload", "Document Management", "Saved Summaries", "Extracted Text", "Insights", "Chat", "Chat History"]
+    icons = ["🏠", "⬆️", "📚", "📌", "📄", "💡", "💬", "📜"]
 
     for i, option in enumerate(nav_options):
         if st.sidebar.button(
@@ -42,14 +42,14 @@ def render_user_sidebar(current_user_id):
             "Upload PDF files",
             type=["pdf"],
             accept_multiple_files=True,
-            key="file_uploader",
+            key=f"file_uploader_{current_user_id}",
             label_visibility="collapsed"
         )
         st.sidebar.divider()
 
     # Show Doc Selector only on Extract, Chat, and Saved Summaries pages
     # Doc selector is NOT shown on Dashboard, Upload, Doc Management, Chat History
-    if st.session_state.current_view in ["Extracted Text", "Chat", "Saved Summaries"]:
+    if st.session_state.current_view in ["Extracted Text", "Insights", "Chat", "Saved Summaries"]:
         st.sidebar.subheader("📂 Select Document")
         with get_session() as db:
             user_docs = get_documents_by_user(db, current_user_id)

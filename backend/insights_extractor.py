@@ -2,6 +2,15 @@ import os
 import json
 from typing import Dict, List, Tuple, Any
 
+try:
+    from wordcloud import WordCloud
+    import matplotlib.pyplot as plt
+    import io
+    import base64
+    _wordcloud_available = True
+except ImportError:
+    _wordcloud_available = False
+
 # ---------- Optional NLP deps (graceful fallback to LLM) ----------
 _nlp = None
 _sia = None
@@ -9,8 +18,14 @@ _sia = None
 # Try spaCy for NER
 try:
     import spacy
-    _nlp = spacy.load("en_core_web_sm")
-except Exception:
+    try:
+        _nlp = spacy.load("en_core_web_lg")
+    except OSError:
+        print("Downloading spaCy model 'en_core_web_lg'...")
+        spacy.cli.download("en_core_web_lg")
+        _nlp = spacy.load("en_core_web_lg")
+except Exception as e:
+    print(f"Error loading spaCy model: {e}")
     _nlp = None
 
 # Try VADER for sentiment
@@ -163,8 +178,63 @@ def extract_insights(text: str, pdf_path: str = "") -> Dict[str, Any]:
         "figures_tables": figures_tables,
     }
 
+def generate_word_cloud_image(keywords: List[str]):
+    """Generates a base64 encoded word cloud image from a list of keywords."""
+    if not _wordcloud_available or not keywords:
+        return None
+
+    try:
+        # Join keywords into a single string
+        text = " ".join(keywords)
+        wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+
+        # Save to a bytes buffer
+        img_buffer = io.BytesIO()
+        plt.figure(figsize=(10, 5))
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.axis('off')
+        plt.tight_layout(pad=0)
+        plt.savefig(img_buffer, format='png')
+        plt.close() # Close the plot to free memory
+        img_buffer.seek(0)
+
+        # Encode image to base64
+        img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
+        return f"data:image/png;base64,{img_base64}"
+    except Exception as e:
+        print(f"Error generating word cloud: {e}")
+        return None
+# -----------------------------------------
+
+# --- Modify extract_insights to include word cloud ---
+def extract_insights(text: str, pdf_path: str = "") -> Dict[str, Any]:
+    keywords = extract_keywords_tfidf(text, top_n=25) # Get more keywords for cloud
+    entities = extract_entities(text)
+    sentiment = sentiment_overview(text)
+    figures_tables = (
+        detect_figures_tables(pdf_path)
+        if pdf_path
+        else {"pages": 0, "total_images": 0, "pages_with_images": 0, "likely_table_lines": 0}
+    )
+    # summary = concise_summary(text) # Maybe keep summary separate or add here if desired
+
+    # --- Generate word cloud ---
+    word_cloud_image = generate_word_cloud_image(keywords)
+    # -------------------------
+
+    return {
+        # "summary": summary, # Removed summary from here, usually generated separately
+        "keywords": keywords[:15], # Return top 15 for list display
+        "entities": entities,
+        "sentiment": sentiment,
+        "figures_tables": figures_tables,
+        "word_cloud_image": word_cloud_image # Add image data
+    }
+
 def save_insights_to_json(insights: Dict[str, Any], out_path: str) -> str:
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(insights, f, ensure_ascii=False, indent=2)
     return out_path
+
+

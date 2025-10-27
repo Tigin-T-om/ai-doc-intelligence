@@ -9,4 +9,4 @@ def generate_response(prompt, model="llama2"):
         model=model,
         messages=[{"role": "user", "content": prompt}]
     )
-    return response["message"]["content"]
+    return response["message"]["content"], "Ollama"

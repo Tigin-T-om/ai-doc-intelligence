@@ -72,7 +72,7 @@ def summarize_map_reduce(text, doc_id, user_id, doc_name, level="Short", chunk_s
     except Exception as reduce_e:
         st.error(f"Final summary generation failed: {reduce_e}. Combining raw chunk summaries.")
         final_summary = "\n\n".join(chunk_summaries)
-        provider_used = "Fallback: Combined chunks"
+        provider_used = "Fallback: Summarized by combining chunk summaries"
 
     progress_bar.progress(100, text="Finalizing...")
 

@@ -45,7 +45,6 @@ def chat_view(active_doc_obj, current_user_id):
                 prompt = f"Answer based on context:\n\n{context}\n\nQuestion: {user_question}"
                 answer, provider = generate_text(prompt)
                 st.markdown(answer)
-                st.caption(f"✅ Generated with {provider}")
 
         with get_session() as db:
             add_message_to_session(db, session.id, "assistant", answer)
