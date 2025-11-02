@@ -36,7 +36,8 @@ def create_vector_store(chunks, doc_name, base_path="backend/vector_store"):
     texts, metadatas = [], []
     for i, chunk in enumerate(chunks, start=1):
         texts.append(chunk.page_content)
-        metadatas.append({"chunk": i})
+        # Add doc_name to metadata for better referencing
+        metadatas.append({"chunk": i, "source_doc": doc_name})
 
     vectordb = FAISS.from_texts(texts, embedding_model, metadatas=metadatas)
     vectordb.save_local(doc_index_path)

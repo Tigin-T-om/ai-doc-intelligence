@@ -45,6 +45,16 @@ def chat_view(active_doc_obj, current_user_id):
                 prompt = f"Answer based on context:\n\n{context}\n\nQuestion: {user_question}"
                 answer, provider = generate_text(prompt)
                 st.markdown(answer)
+                
+                # --- Display Retrieved Fragments (for context) ---
+                if retrieved_docs:
+                    st.subheader("📚 Retrieved Context")
+                    for i, doc in enumerate(retrieved_docs):
+                        source_info = doc.metadata.get("source_doc", "Unknown Document")
+                        chunk_info = doc.metadata.get("chunk", i + 1) # Fallback to index if no chunk
+                        with st.expander(f"Fragment from {source_info} (Chunk {chunk_info})"):
+                            st.markdown(doc.page_content)
+                # --------------------------------------------------
 
         with get_session() as db:
             add_message_to_session(db, session.id, "assistant", answer)

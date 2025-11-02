@@ -44,7 +44,7 @@ except Exception:
 from backend.llm_client import generate_text
 
 # TF-IDF keywords
-def extract_keywords_tfidf(text: str, top_n: int = 12) -> List[str]:
+def extract_keywords_tfidf(text: str, top_n: int = 12) -> List[Tuple[str, float]]:
     from sklearn.feature_extraction.text import TfidfVectorizer
     import numpy as np
 
@@ -60,32 +60,47 @@ def extract_keywords_tfidf(text: str, top_n: int = 12) -> List[str]:
     scores = X.toarray()[0]
     terms = np.array(vectorizer.get_feature_names_out())
     idx = scores.argsort()[::-1][:top_n]
-    return [t for t in terms[idx] if len(t) > 2]
+    # Return keywords with their scores
+    return [(terms[i], scores[i]) for i in idx if len(terms[i]) > 2]
 
-def extract_entities(text: str, max_chars: int = 8000) -> Dict[str, List[Tuple[str, int]]]:
+def extract_entities(text: str, max_chars: int = 8000) -> Dict[str, List[Dict[str, Any]]]: # Changed return type
     snippet = text[:max_chars]
 
     if _nlp is not None:
         doc = _nlp(snippet)
-        buckets: Dict[str, Dict[str, int]] = {}
+        all_entities: Dict[str, List[Dict[str, Any]]] = {}
         for ent in doc.ents:
             label = ent.label_
             val = ent.text.strip()
             if not val:
                 continue
-            buckets.setdefault(label, {})
-            buckets[label][val] = buckets[label].get(val, 0) + 1
+            all_entities.setdefault(label, []).append({"text": val, "start": ent.start_char, "end": ent.end_char})
+        
+        # For consistent display, we might want to count and sort as well
+        # But for annotated view, just the raw entities with offsets are fine.
+        # If we want top entities with counts, we'd process all_entities further.
 
-        top: Dict[str, List[Tuple[str, int]]] = {}
-        for label, counts in buckets.items():
-            top[label] = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:8]
-        return top
+        # For the UI display, we'll still want top entities with counts.
+        # Let's create a separate structure for that, while keeping offsets for highlighting.
+        entity_counts: Dict[str, Dict[str, int]] = {}
+        for label, entities_list in all_entities.items():
+            entity_counts.setdefault(label, {})
+            for ent_data in entities_list:
+                entity_counts[label][ent_data["text"]] = entity_counts[label].get(ent_data["text"], 0) + 1
+        
+        top_entities_with_counts: Dict[str, List[Tuple[str, int]]] = {}
+        for label, counts in entity_counts.items():
+            top_entities_with_counts[label] = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:8]
+
+        return {"raw_entities": all_entities, "top_entities": top_entities_with_counts}
 
     # ---------- LLM fallback ----------
     try:
         prompt = (
-            "Extract named entities from the text. Return JSON with keys PERSON, ORG, GPE, DATE. "
-            "For each key, provide a list of [entity, count] pairs, top 8 per label. "
+            "Extract named entities from the text. For each entity, return its text, label, start_offset, and end_offset. "
+            "Also, provide a summary of top 8 entities with counts per label. "
+            "Return JSON with two top-level keys: 'raw_entities' (a dictionary where keys are labels and values are lists of objects {text, start, end}) "
+            "and 'top_entities' (a dictionary where keys are labels and values are lists of [entity, count] pairs). "
             "Text:\n" + snippet
         )
         raw = generate_text(prompt)
@@ -95,7 +110,7 @@ def extract_entities(text: str, max_chars: int = 8000) -> Dict[str, List[Tuple[s
             return json.loads(json_text[0])
     except Exception:
         pass
-    return {}
+    return {"raw_entities": {}, "top_entities": {}}
 
 def sentiment_overview(text: str, max_chars: int = 8000) -> Dict[str, Any]:
     snippet = text[:max_chars]
@@ -120,6 +135,23 @@ def sentiment_overview(text: str, max_chars: int = 8000) -> Dict[str, Any]:
         pass
 
     return {"compound": 0.0, "pos": 0.0, "neu": 1.0, "neg": 0.0}
+
+def sentiment_trend_analysis(text: str, segment_size: int = 500) -> List[Dict[str, Any]]:
+    """Analyzes sentiment across segments of text to show a trend."""
+    if not _sia:
+        return [] # Cannot perform trend analysis without SIA
+
+    segments = []
+    # Simple segment splitting for now, could be improved with NLP sentence splitting
+    for i in range(0, len(text), segment_size):
+        segments.append(text[i:i+segment_size])
+
+    trend_data = []
+    for i, segment in enumerate(segments):
+        if segment.strip():
+            scores = _sia.polarity_scores(segment)
+            trend_data.append({"segment": i + 1, "compound": scores['compound'], "pos": scores['pos'], "neu": scores['neu'], "neg": scores['neg']})
+    return trend_data
 
 def detect_figures_tables(pdf_path: str) -> Dict[str, Any]:
     import fitz
@@ -159,25 +191,6 @@ def concise_summary(text: str, max_chars: int = 6000) -> str:
     )
     return generate_text(prompt)
 
-def extract_insights(text: str, pdf_path: str = "") -> Dict[str, Any]:
-    keywords = extract_keywords_tfidf(text, top_n=12)
-    entities = extract_entities(text)
-    sentiment = sentiment_overview(text)
-    figures_tables = (
-        detect_figures_tables(pdf_path)
-        if pdf_path
-        else {"pages": 0, "total_images": 0, "pages_with_images": 0, "likely_table_lines": 0}
-    )
-    summary = concise_summary(text)
-
-    return {
-        "summary": summary,
-        "keywords": keywords,
-        "entities": entities,
-        "sentiment": sentiment,
-        "figures_tables": figures_tables,
-    }
-
 def generate_word_cloud_image(keywords: List[str]):
     """Generates a base64 encoded word cloud image from a list of keywords."""
     if not _wordcloud_available or not keywords:
@@ -206,9 +219,10 @@ def generate_word_cloud_image(keywords: List[str]):
         return None
 # -----------------------------------------
 
-# --- Modify extract_insights to include word cloud ---
+# --- The correct extract_insights function (ensure this is the ONLY one) ---
 def extract_insights(text: str, pdf_path: str = "") -> Dict[str, Any]:
-    keywords = extract_keywords_tfidf(text, top_n=25) # Get more keywords for cloud
+    keywords_with_scores = extract_keywords_tfidf(text, top_n=25)
+    keywords_only = [kw for kw, score in keywords_with_scores]
     entities = extract_entities(text)
     sentiment = sentiment_overview(text)
     figures_tables = (
@@ -216,19 +230,19 @@ def extract_insights(text: str, pdf_path: str = "") -> Dict[str, Any]:
         if pdf_path
         else {"pages": 0, "total_images": 0, "pages_with_images": 0, "likely_table_lines": 0}
     )
-    # summary = concise_summary(text) # Maybe keep summary separate or add here if desired
-
-    # --- Generate word cloud ---
-    word_cloud_image = generate_word_cloud_image(keywords)
-    # -------------------------
+    word_cloud_image = generate_word_cloud_image(keywords_only)
+    sentiment_trend = sentiment_trend_analysis(text)
 
     return {
-        # "summary": summary, # Removed summary from here, usually generated separately
-        "keywords": keywords[:15], # Return top 15 for list display
-        "entities": entities,
+        "full_text": text,
+        "keywords": keywords_only[:15],
+        "keyword_scores": keywords_with_scores,
+        "entities": entities["top_entities"],
+        "raw_entities_with_offsets": entities["raw_entities"],
         "sentiment": sentiment,
+        "sentiment_trend": sentiment_trend,
         "figures_tables": figures_tables,
-        "word_cloud_image": word_cloud_image # Add image data
+        "word_cloud_image": word_cloud_image
     }
 
 def save_insights_to_json(insights: Dict[str, Any], out_path: str) -> str:

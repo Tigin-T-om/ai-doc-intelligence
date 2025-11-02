@@ -1,5 +1,6 @@
 # frontend/app.py
-import os, sys
+import sys
+import os
 import streamlit as st
 
 # ----------------------------
