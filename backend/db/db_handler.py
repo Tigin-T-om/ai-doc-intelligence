@@ -12,13 +12,35 @@ from datetime import datetime, timedelta, timezone
 from backend.db.models import Base, User, Document, ChatMessage, ChatSession, ApiLog, Summary
 
 # --- STEP 2: CONFIGURE AND CONNECT TO THE DATABASE ---
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL not set in environment (.env)")
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+import streamlit as st
 
+# Load .env for local
+load_dotenv()
+
+# Try secrets (for Streamlit Cloud)
+DATABASE_URL = None
+try:
+    if hasattr(st, "secrets"):
+        DATABASE_URL = st.secrets.get("DATABASE_URL", None)
+except Exception:
+    DATABASE_URL = None
+
+# Fallback to local .env
+if not DATABASE_URL:
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Final check
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL not set in .env or Streamlit secrets")
+
+# Database engine
 engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 # --- STEP 3: DEFINE DATABASE FUNCTIONS ---
 
