@@ -157,77 +157,33 @@ ai_doc_intel_platform/
 
 ## 📸 Screenshots
 
-Create this folder:
-
-``` text
-docs/
-└── screenshots/
-```
-
-Recommended screenshots for GitHub:
-
-1.  Dashboard
-2.  Document Upload
-3.  Document Insights
-4.  RAG Chat
-5.  Document Summary
-6.  Admin Dashboard
-
-Then add them like this:
-
-``` markdown
-![Dashboard](docs/screenshots/01-dashboard.png)
-```
-
 ### Dashboard
 
-```{=html}
-<!-- Add screenshot here: docs/screenshots/01-dashboard.png -->
-```
-![Dashboard](docs/screenshots/01-dashboard.png)
+![Dashboard](docs/screenshots/01_dashboard.jpg)
 
 ### Document Upload
 
-```{=html}
-<!-- Add screenshot here: docs/screenshots/02-document-upload.png -->
-```
-![Document Upload](docs/screenshots/02-document-upload.png)
+![Document Upload](docs/screenshots/02_document_management.jpg)
 
 ### Document Insights
 
-```{=html}
-<!-- Add screenshot here: docs/screenshots/03-document-insights.png -->
-```
-![Document Insights](docs/screenshots/03-document-insights.png)
+![Document Insights](docs/screenshots/03_insights.jpg)
 
 ### RAG Chat
 
-```{=html}
-<!-- Add screenshot here: docs/screenshots/04-rag-chat.png -->
-```
-![RAG Chat](docs/screenshots/04-rag-chat.png)
+![RAG Chat](docs/screenshots/05_chat.jpg)
 
 ### Document Summary
 
-```{=html}
-<!-- Add screenshot here: docs/screenshots/05-summary.png -->
-```
-![Document Summary](docs/screenshots/05-summary.png)
-
-### Admin Dashboard
-
-```{=html}
-<!-- Add screenshot here: docs/screenshots/06-admin-dashboard.png -->
-```
-![Admin Dashboard](docs/screenshots/06-admin-dashboard.png)
+![Document Summary](docs/screenshots/04_summary.jpg)
 
 ## ⚙️ Installation
 
 ### 1. Clone the repository
 
 ``` bash
-git clone https://github.com/Tigin-T-om/ai_doc_intel_platform.git
-cd ai_doc_intel_platform
+git clone https://github.com/Tigin-T-om/ai-doc-intelligence.git
+cd ai-doc-intelligence
 ```
 
 ### 2. Create a virtual environment
